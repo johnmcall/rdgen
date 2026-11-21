@@ -371,20 +371,12 @@ def generate_custom_client(params, full_url):
         "filename":filename
     }
 
-    temp_json_path = f"data_{uuid.uuid4()}.json"
-    zip_filename = f"secrets_{uuid.uuid4()}.zip"
-    zip_path = "temp_zips/%s" % (zip_filename)
-    Path("temp_zips").mkdir(parents=True, exist_ok=True)
-
-    with open(temp_json_path, "w") as f:
-        json.dump(inputs_raw, f)
-
+    zip_filename = f"secrets_{myuuid}.zip"
+    zip_path = os.path.join('temp_zips', zip_filename)
+    Path('temp_zips').mkdir(parents=True, exist_ok=True)
     with pyzipper.AESZipFile(zip_path, 'w', compression=pyzipper.ZIP_LZMA, encryption=pyzipper.WZ_AES) as zf:
         zf.setpassword(_settings.ZIP_PASSWORD.encode())
-        zf.write(temp_json_path, arcname="secrets.json")
-
-    if os.path.exists(temp_json_path):
-        os.remove(temp_json_path)
+        zf.writestr('secrets.json', json.dumps(inputs_raw).encode('utf-8'))
 
     zipJson = {}
     zipJson['url'] = full_url
@@ -746,27 +738,17 @@ def save_custom_client(request):
     return HttpResponse("File saved successfully!")
 
 def cleanup_secrets(request):
-    # Pass the UUID as a query param or in JSON body
-    data = json.loads(request.body)
-    my_uuid = data.get('uuid')
-    
-    if not my_uuid:
-        return HttpResponse("Missing UUID", status=400)
+    try:
+        value = json.loads(request.body).get('uuid')
+        parsed = str(uuid.UUID(value))
+        if parsed != value:
+            raise ValueError('Noncanonical UUID')
+    except (ValueError, TypeError, AttributeError):
+        return HttpResponse('Invalid UUID', status=400)
+    path = Path('temp_zips') / f'secrets_{parsed}.zip'
+    path.unlink(missing_ok=True)
+    return HttpResponse('Cleanup successful', status=200)
 
-    # 1. Find the files in your temp directory matching the UUID
-    temp_dir = os.path.join('temp_zips')
-    
-    # We look for any file starting with 'secrets_' and containing the uuid
-    for filename in os.listdir(temp_dir):
-        if my_uuid in filename and filename.endswith('.zip'):
-            file_path = os.path.join(temp_dir, filename)
-            try:
-                os.remove(file_path)
-                logger.info(f"Successfully deleted {file_path}")
-            except OSError as e:
-                logger.warning(f"Error deleting file: {e}")
-
-    return HttpResponse("Cleanup successful", status=200)
 
 def get_zip(request):
     filename = request.GET['filename']

@@ -37,4 +37,7 @@ jobs:
           response = requests.post(base+'/save_custom_client',data={'uuid':fixture['uuid']},files={'file':('rdgen-smoke.txt',b'RDGen HTTPS callback roundtrip passed.\n')},timeout=30)
           if response.status_code != 200:
               raise SystemExit('Upload callback rejected')
-          print('TLS, encrypted fixture and both callbacks passed')
+          response = requests.post(base+'/cleanzip',json={'uuid':fixture['uuid']},timeout=30)
+          if response.status_code != 200:
+              raise SystemExit('Cleanup callback rejected')
+          print('TLS, encrypted fixture, upload/status/cleanup callbacks passed')
