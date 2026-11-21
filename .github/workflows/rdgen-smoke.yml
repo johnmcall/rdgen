@@ -1,0 +1,40 @@
+name: RDGen integration smoke
+on:
+  workflow_dispatch:
+    inputs:
+      zip_url:
+        description: URL of an encrypted harmless integration fixture
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  roundtrip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Install archive reader
+        run: python -m pip install pyzipper==0.4.0 requests==2.34.2
+      - name: Verify HTTPS, encrypted archive and callbacks
+        env:
+          ZIP_URL: ${{ inputs.zip_url }}
+          ZIP_PASSWORD: ${{ secrets.ZIP_PASSWORD }}
+          CALLBACK_BASE: ${{ secrets.GENURL }}
+        shell: python
+        run: |
+          import os, io, json, requests, pyzipper
+          r = requests.get(os.environ['ZIP_URL'], timeout=30)
+          r.raise_for_status()
+          with pyzipper.AESZipFile(io.BytesIO(r.content)) as z:
+              z.setpassword(os.environ['ZIP_PASSWORD'].encode())
+              fixture = json.loads(z.read('secrets.json'))
+          if fixture['purpose'] != 'rdgen-integration-smoke':
+              raise SystemExit('Unexpected fixture')
+          base = os.environ['CALLBACK_BASE']
+          response = requests.post(base+'/updategh',json={'uuid':fixture['uuid'],'status':'smoke_external_pass'},timeout=30)
+          if response.status_code != 200:
+              raise SystemExit('Status callback rejected')
+          response = requests.post(base+'/save_custom_client',data={'uuid':fixture['uuid']},files={'file':('rdgen-smoke.txt',b'RDGen HTTPS callback roundtrip passed.\n')},timeout=30)
+          if response.status_code != 200:
+              raise SystemExit('Upload callback rejected')
+          print('TLS, encrypted fixture and both callbacks passed')
