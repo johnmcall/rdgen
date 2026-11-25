@@ -12,7 +12,7 @@ import tempfile
 from bundles import classify, make_bundle, sha, verify_bundle
 from check_package import check_msi, check_portable
 from local_profile import read_profile
-from neutral_kit import SOURCE_SHA, github_digest, unpack
+from neutral_kit import github_digest, unpack
 from windows_resources import apply_profile, read_resource, set_resources
 
 TOOLS = Path(__file__).resolve().parent
@@ -49,7 +49,7 @@ def check_build_tools(kit):
         "/p:Platform=x64", cwd=kit/"res/msi/Package")
 
 
-def package(kit, inputs, work, out):
+def package(kit, inputs, work, out, version):
     dist = inputs/"dist"
     builder = importlib.util.spec_from_file_location("portable_format", kit/"template/generate.py")
     generate = importlib.util.module_from_spec(builder)
@@ -62,7 +62,7 @@ def package(kit, inputs, work, out):
     set_resources(portable, [(10, "RDPKG", 0, blob.read_bytes())])
     msi = kit/"res/msi"
     project = msi/"Package"
-    run(sys.executable, msi/"preprocess.py", "--app-name", "RustDesk", "--version", "1.5.3",
+    run(sys.executable, msi/"preprocess.py", "--app-name", "RustDesk", "--version", version,
         "--arp", "-d", dist, cwd=msi)
     run("msbuild", "Package.wixproj", "-restore", "/p:Configuration=Release", "/p:Platform=x64",
         f"/p:DefineConstants=SignedHelper={inputs/'msi/CustomActions.dll'}", cwd=project)
@@ -100,7 +100,7 @@ def release(args):
     with tempfile.TemporaryDirectory(prefix="rdgen-work-") as tmp:
         work = Path(tmp)
         kit = work/"kit"
-        unpack(args.kit, kit, expected, origin)
+        version, source = unpack(args.kit, kit, expected, origin)
         check_build_tools(kit)
         apply_profile(kit, profile)
         inputs = work/"inputs"
@@ -110,14 +110,14 @@ def release(args):
         selected, inventory = classify(inputs, "rustdesk")
         if not {"dist/rustdesk.exe", "msi/CustomActions.dll"}.issubset(selected):
             raise ValueError("Missing required signing inputs")
-        meta = dict(id=args.run + "-" + args.attempt, platform="windows", version="1.5.3",
-                    certificate=args.certificate, source_revision=SOURCE_SHA, workflow_revision=args.revision)
+        meta = dict(id=args.run + "-" + args.attempt, platform="windows", version=version,
+                    certificate=args.certificate, source_revision=source, workflow_revision=args.revision)
         sign_round(inputs, selected, work/"payload-round", args, meta, "payload")
         for item in inventory:
             if item["path"] not in selected and sha(inputs/item["path"]) != item["sha256"]:
                 raise ValueError("Preserved distribution file changed")
         def build(out):
-            blob = package(kit, inputs, work, out)
+            blob = package(kit, inputs, work, out, version)
             check_outputs(kit, inputs, out, blob)
             sign_round(out, {EXE:"package", MSI:"package"}, work/"packages-round", args, meta, "packages")
             check_outputs(kit, inputs, out, blob)

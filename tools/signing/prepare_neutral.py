@@ -5,9 +5,10 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tomllib
 import xml.etree.ElementTree as ET
 
-from neutral_kit import SOURCE_SHA, write_manifest
+from neutral_kit import write_manifest
 
 
 def run(*args, cwd):
@@ -15,7 +16,12 @@ def run(*args, cwd):
 
 
 def prepare(source, kit):
-    if subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=source, text=True).strip() != SOURCE_SHA:
+    version = os.environ["RELEASE_VERSION"]
+    revision = os.environ["RELEASE_SOURCE"]
+    with (source/"Cargo.toml").open("rb") as cargo:
+        if tomllib.load(cargo)["package"]["version"] != version:
+            raise ValueError("RustDesk package version differs from release tag")
+    if subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=source, text=True).strip() != revision:
         raise ValueError("Unexpected RustDesk source revision")
     kit.mkdir()
     dist = kit/"dist"
@@ -75,7 +81,7 @@ def prepare(source, kit):
     xml.write(proj, encoding="utf-8", xml_declaration=True)
     origin = {k:os.environ[v] for k, v in (("repository","GITHUB_REPOSITORY"),("revision","GITHUB_SHA"),
                                             ("run","GITHUB_RUN_ID"),("attempt","GITHUB_RUN_ATTEMPT"))}
-    write_manifest(kit, origin)
+    write_manifest(kit, origin, version, revision)
 
 
 if __name__ == "__main__":
