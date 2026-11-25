@@ -45,6 +45,7 @@ class GenerateForm(forms.Form):
     #Custom Server
     serverIP = forms.CharField(label="Host", required=False)
     serverPort = forms.CharField(label="Port", required=False)
+    relayServer = forms.CharField(label="Relay server (local Windows profile)", required=False)
     apiServer = forms.CharField(label="API Server", required=False)
     key = forms.CharField(label="Key", required=False)
     urlLink = forms.CharField(label="Custom URL for links", required=False)
@@ -125,6 +126,11 @@ class GenerateForm(forms.Form):
     #custom added features
     xOffline = forms.BooleanField(initial=False, required=False)
     removeNewVersionNotif = forms.BooleanField(initial=False, required=False)
+
+    def clean_relayServer(self):
+        if self.cleaned_data.get("relayServer"):
+            raise forms.ValidationError("Use Save Windows Connection Profile for a local Windows release with a custom relay.")
+        return ""
 
     def clean_iconfile(self):
         logger.info("checking icon")

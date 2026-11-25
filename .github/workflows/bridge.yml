@@ -5,6 +5,10 @@ name: Build flutter-rust-bridge
 on:
   workflow_call:
     inputs:
+      source-commit:
+        description: Optional pinned RustDesk commit
+        required: false
+        type: string
       version:
         description: 'Rustdesk Version'
         required: true
@@ -35,7 +39,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: rustdesk/rustdesk
-          ref: refs/tags/${{ inputs.version }}
+          ref: ${{ inputs.source-commit || format('refs/tags/{0}', inputs.version) }}
           submodules: recursive
         
       - name: Checkout source code

@@ -3,6 +3,8 @@
 The client generator is currently hosted [here](https://rdgen.crayoneater.org).
 If you would like to host the generator yourself, see [here](setup.md)
 
+To build a neutral Windows x64 kit and sign a customized client on your workstation, follow the [local Windows release guide](docs/local-windows-signing.md).
+
 ## rustdesk api server integration
 
 The rdgen client generator is integrated into my fork of the [rustdesk-api](https://github.com/bryangerlach/rustdesk-api). This is currently a work in progress, and might have bugs.

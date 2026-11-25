@@ -1,0 +1,131 @@
+name: Neutral Windows release kit
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: RustDesk version
+        required: true
+        type: choice
+        options: ['1.5.3']
+      arch:
+        description: Windows architecture
+        required: true
+        type: choice
+        options: [x64]
+permissions:
+  contents: read
+jobs:
+  bridge:
+    if: inputs.version == '1.5.3' && inputs.arch == 'x64'
+    uses: ./.github/workflows/bridge.yml
+    with:
+      version: '1.5.3'
+      source-commit: 95cca3f661f635b3cc85c04935fe8d96d8f432ef
+  kit:
+    needs: bridge
+    runs-on: windows-2022
+    env:
+      VCPKG_BINARY_SOURCES: clear
+    defaults:
+      run:
+        working-directory: rustdesk-src
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: rdgen
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: rustdesk/rustdesk
+          ref: 95cca3f661f635b3cc85c04935fe8d96d8f432ef
+          submodules: recursive
+          path: rustdesk-src
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: bridge-artifact
+          path: rustdesk-src
+      - uses: actions/checkout@v4
+        with:
+          repository: rustdesk-org/RustDeskTempTopMostWindow
+          ref: ecd8d6a139eee76845ea66423fb739af450fda90
+          path: topmost
+          persist-credentials: false
+      - uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
+        with:
+          version: '15.0.6'
+      - uses: subosito/flutter-action@2783a3f08e1baf891508463f8c6653c258246225
+        with:
+          channel: stable
+          flutter-version: '3.24.5'
+          architecture: x64
+      - name: Prepare Flutter engine
+        run: |
+          flutter precache --windows
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Invoke-WebRequest https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile engine.zip
+          Expand-Archive engine.zip engine
+          Copy-Item engine/* "$env:FLUTTER_ROOT/bin/cache/artifacts/engine/windows-x64-release" -Recurse -Force
+          git -C $env:FLUTTER_ROOT apply "$PWD/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff"
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: '1.75'
+          targets: x86_64-pc-windows-msvc
+      - uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: 9e593bb18ea69cc5095e012465dcd675a822ed0d
+      - name: Install native build dependencies
+        env:
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        run: |
+          & "$env:VCPKG_ROOT/vcpkg.exe" install --triplet x64-windows-static "--x-install-root=$env:VCPKG_ROOT/installed"
+      - name: Compile neutral client
+        run: |
+          git apply --check ../rdgen/.github/patches/local_windows_profile.patch
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          git apply ../rdgen/.github/patches/local_windows_profile.patch
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python build.py --portable --flutter --skip-portable-pack --hwcodec --vram
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Move-Item flutter/build/windows/x64/runner/Release rustdesk
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: microsoft/setup-msbuild@v2
+      - name: Include x64 drivers and build helpers
+        run: |
+          Invoke-WebRequest https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usb.zip
+          Expand-Archive usb.zip usb
+          Remove-Item usb/usbmmidd_v2/Win32 -Recurse
+          Remove-Item usb/usbmmidd_v2/deviceinstaller64.exe,usb/usbmmidd_v2/deviceinstaller.exe,usb/usbmmidd_v2/usbmmidd.bat
+          Move-Item usb/usbmmidd_v2 rustdesk
+          $base = 'https://github.com/rustdesk/hbb_common/releases/download/driver'
+          $name = 'rustdesk_printer_driver_v4-1.4.zip'
+          Invoke-WebRequest "$base/$name" -OutFile printer.zip
+          $sums = (Invoke-RestMethod "$base/sha256sums") -split "\n"
+          $line = @($sums | Where-Object { $_.TrimEnd() -match '^([0-9a-fA-F]{64}) \*rustdesk_printer_driver_v4-1\.4\.zip$' })
+          if ($line.Count -ne 1 -or $line[0].Substring(0,64) -ne (Get-FileHash printer.zip).Hash) { throw 'Printer driver digest mismatch' }
+          Expand-Archive printer.zip printer
+          New-Item -Type Directory rustdesk/drivers
+          Move-Item printer/rustdesk_printer_driver_v4-1.4 rustdesk/drivers/RustDeskPrinterDriver
+          cargo build --locked --release --manifest-path ../rdgen/printer-adapter/Cargo.toml --target-dir adapter-build
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Copy-Item adapter-build/release/printer_driver_adapter.dll rustdesk
+          msbuild ../topmost/WindowInjection/WindowInjection.vcxproj /p:Configuration=Release /p:Platform=x64 /p:TargetVersion=Windows10 "/p:OutDir=$PWD/topmost-build/"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Copy-Item topmost-build/WindowInjection.dll rustdesk
+      - name: Stage and inventory kit
+        run: python ../rdgen/tools/signing/prepare_neutral.py . ../kit
+      - name: Check Windows resource handling on disposable files
+        working-directory: rdgen
+        run: |
+          python -m pip install -r tools/signing/requirements-windows-release.txt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m unittest discover -s tests/windows -p test_local_resources.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neutral-windows-x64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: kit/
+          if-no-files-found: error
+          include-hidden-files: true
