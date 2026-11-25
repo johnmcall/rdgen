@@ -37,6 +37,26 @@ class NeutralKitTests(TestCase):
                         unpack(archive, Path(tmp, variant), digest if variant != "digest" else "0"*64,
                                dict(expected, run="26") if variant == "run" else expected)
 
+    def test_new_release_checks_tag_and_returns_packaging_version(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp, "kit")
+            for name in REQUIRED:
+                p = root/name
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_bytes(b"fixture")
+            write_manifest(root, {}, "2.0.1", "b"*40)
+            archive = Path(tmp, "new.zip")
+            with ZipFile(archive, "w") as z:
+                for p in root.rglob("*"):
+                    if p.is_file():
+                        z.write(p, p.relative_to(root))
+            digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+            with patch("subprocess.check_output", return_value="b"*40):
+                self.assertEqual(unpack(archive, Path(tmp, "out"), digest, {}), ("2.0.1", "b"*40))
+            with patch("subprocess.check_output", return_value="c"*40), self.assertRaises(ValueError):
+                unpack(archive, Path(tmp, "wrong"), digest, {})
+
+
 class GitHubProvenanceTests(TestCase):
     def test_authenticated_metadata_matches_each_identifier(self):
         origin = dict(repository="example/repo", revision="a"*40, run="51", attempt="2")

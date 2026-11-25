@@ -1,14 +1,14 @@
 # Build a signed Windows client from a neutral kit
 
-GitHub Actions compiles RustDesk 1.5.3 for Windows x64. On your Windows workstation, a PowerShell script applies a connection profile and icon, signs the application files, builds a portable executable and an MSI installer, and signs both packages. You can reuse one kit for several profiles.
+GitHub Actions compiles stable RustDesk releases for Windows x64. On your Windows workstation, a PowerShell script applies a connection profile and icon, signs the application files, builds a portable executable and an MSI installer, and signs both packages. You can reuse one kit for several profiles.
 
 ## Download the kit
 
-1. In the repository's **Actions** tab, open **Neutral Windows release kit** and choose **Run workflow**. Select version **1.5.3** and architecture **x64**.
-2. After the run succeeds, download the original ZIP named `neutral-windows-x64-<run-id>-<attempt>.zip`. Keep the ZIP intact. Record the repository name, full workflow commit SHA, run ID and attempt number.
+1. In the repository's **Actions** tab, open **Neutral Windows release kit** and select a successful run with a **kit** job. The workflow checks for a stable upstream release daily at 03:17 UTC. **Run workflow** starts the same check immediately. Select **force_rebuild** to request a fresh build.
+2. After the run succeeds, download the original ZIP whose name starts with `neutral-windows-x64-<run-id>-<attempt>`. Keep the ZIP intact. Record the repository name, full workflow commit SHA, run ID and attempt number.
 3. In an RDGen instance running this version, enter a configuration name, ID server host and port, public server key, API URL, optional relay address, and optional square PNG icon. Click **Save Windows Connection Profile** and save the JSON on your workstation. Leaving the relay blank retains the client's usual relay selection.
 
-The workflow currently runs on demand and targets this RustDesk version. The ZIP contains the compiled client, libraries and packaging inputs. Treat the kit and build logs as public when using a public repository.
+The daily check skips compilation while a successful ZIP for that release and source commit is available. It retries failed builds and replaces expired artifacts on a later check. The ZIP contains the compiled client, libraries and packaging inputs. Treat the kit and build logs as public when using a public repository.
 
 ## Prepare the signing workstation
 

@@ -19,7 +19,7 @@ class LocalProfile:
 
 
 DEFAULTS = {
-    "platform": "windows", "version": "1.5.3", "direction": "both",
+    "platform": "windows", "direction": "both",
     "installation": "installationY", "settings": "settingsY", "theme": "system",
     "themeDorO": "default", "passApproveMode": "password-click", "permissionsType": "custom",
 }
@@ -72,7 +72,10 @@ def read_profile(path: Path) -> LocalProfile:
         if name == "removeWallpaper" and value in (True, "on", "true"):
             legacy_settings.append(name)
             continue
-        if name in CHECKED:
+        if name == "version":
+            # RDGen full exports include the version selected when saving the profile.
+            accepted = isinstance(value, str) and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", value)
+        elif name in CHECKED:
             legacy_settings.append(name)
             accepted = value in (True, "on", "true")
         elif name in DEFAULTS:

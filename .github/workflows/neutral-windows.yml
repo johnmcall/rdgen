@@ -1,28 +1,47 @@
 name: Neutral Windows release kit
 on:
+  schedule:
+    - cron: '17 3 * * *'
   workflow_dispatch:
     inputs:
-      version:
-        description: RustDesk version
-        required: true
-        type: choice
-        options: ['1.5.3']
-      arch:
-        description: Windows architecture
-        required: true
-        type: choice
-        options: [x64]
+      force_rebuild:
+        description: Rebuild even if a verified kit is available
+        type: boolean
+        default: false
+concurrency:
+  group: neutral-windows-x64-${{ github.ref }}
+  cancel-in-progress: false
 permissions:
   contents: read
+  actions: read
 jobs:
+  check:
+    if: github.event_name == 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      source: ${{ steps.release.outputs.source }}
+      build: ${{ steps.release.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: release
+        name: Check stable upstream releases and existing kits
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.ref_name }}
+          FORCE_REBUILD: ${{ inputs.force_rebuild }}
+        run: python3 tools/signing/check_upstream.py
   bridge:
-    if: inputs.version == '1.5.3' && inputs.arch == 'x64'
+    needs: check
+    if: needs.check.outputs.build == 'true'
     uses: ./.github/workflows/bridge.yml
     with:
-      version: '1.5.3'
-      source-commit: 95cca3f661f635b3cc85c04935fe8d96d8f432ef
+      version: ${{ needs.check.outputs.version }}
+      source-commit: ${{ needs.check.outputs.source }}
   kit:
-    needs: bridge
+    needs: [check, bridge]
     runs-on: windows-2022
     env:
       VCPKG_BINARY_SOURCES: clear
@@ -37,7 +56,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: rustdesk/rustdesk
-          ref: 95cca3f661f635b3cc85c04935fe8d96d8f432ef
+          ref: ${{ needs.check.outputs.source }}
           submodules: recursive
           path: rustdesk-src
           persist-credentials: false
@@ -116,6 +135,9 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           Copy-Item topmost-build/WindowInjection.dll rustdesk
       - name: Stage and inventory kit
+        env:
+          RELEASE_VERSION: ${{ needs.check.outputs.version }}
+          RELEASE_SOURCE: ${{ needs.check.outputs.source }}
         run: python ../rdgen/tools/signing/prepare_neutral.py . ../kit
       - name: Check Windows resource handling on disposable files
         working-directory: rdgen
@@ -125,7 +147,7 @@ jobs:
           python -m unittest discover -s tests/windows -p test_local_resources.py
       - uses: actions/upload-artifact@v4
         with:
-          name: neutral-windows-x64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: neutral-windows-x64-${{ github.run_id }}-${{ github.run_attempt }}-${{ needs.check.outputs.version }}-${{ needs.check.outputs.source }}
           path: kit/
           if-no-files-found: error
           include-hidden-files: true
