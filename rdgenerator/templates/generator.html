@@ -425,6 +425,7 @@
                 <h2 id="saveLoadTitle">Save/Load Configuration <i class="fas fa-chevron-down"></i></h2>  
                 <div class="save-load-section">  
                     <button type="button" onclick="saveFormData()">Save Configuration</button>
+                    <button type="button" onclick="saveFormData(true)" title="Export server addresses, public key and icon for local packaging">Save Windows Connection Profile</button>
                     <input type="file" id="fileInput" style="display:none;" accept=".json">
                     <button type="button" onclick="loadFormData()">Load Configuration</button>
                 </div>
@@ -495,6 +496,8 @@
                     {{ form.key }}<br><br>
                     <label for="{{ form.apiServer.id_for_label }}">API:</label>
                     {{ form.apiServer }}<br><br>
+                    <label for="{{ form.relayServer.id_for_label }}">Relay server (local Windows profile):</label>
+                    {{ form.relayServer }} {{ form.relayServer.errors }}<br><br>
                     <label for="{{ form.urlLink.id_for_label }}">Custom URL for links (replaces https://rustdesk.com):</label>
                     {{ form.urlLink }}<br><br>
                     <label for="{{ form.downloadLink.id_for_label }}">Custom URL for downloading updates (replaces https://rustdesk.com/download):</label>
@@ -937,7 +940,7 @@
             icon.classList.toggle("fa-chevron-up");
         });
 
-        async function saveFormData() {
+        async function saveFormData(localProfile = false) {
             const filename = document.getElementById("{{ form.exename.id_for_label }}").value;
             if (!filename) {
                 document.getElementById("filenameError").textContent = "Filename is required.";
@@ -1018,7 +1021,11 @@
                 }
             }
 
-            const jsonData = JSON.stringify(formData, null, 2);
+            const profileFields = ['platform', 'version', 'serverIP', 'serverPort', 'relayServer', 'apiServer', 'key', 'iconfile', 'exename'];
+            const exported = localProfile
+                ? Object.fromEntries(profileFields.filter(k => k in formData).map(k => [k, formData[k]]))
+                : formData;
+            const jsonData = JSON.stringify(exported, null, 2);
             const blob = new Blob([jsonData], { type: "application/json" });
             const url = URL.createObjectURL(blob);
 

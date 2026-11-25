@@ -1,0 +1,71 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 625f45d..53a8189 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -113,6 +113,7 @@ qrcode-generator = "4.1"
+ [target.'cfg(target_os = "windows")'.dependencies]
+ winapi = { version = "0.3", features = [
+     "winuser",
++    "libloaderapi",
+     "wincrypt",
+     "shellscalingapi",
+     "pdh",
+diff --git a/src/common.rs b/src/common.rs
+index 4bc5bc2..ca0b442 100644
+--- a/src/common.rs
++++ b/src/common.rs
+@@ -2506,7 +2506,54 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
+     ThrottledInterval::new(i)
+ }
+ 
++// The publisher embeds these four defaults in the main executable before signing.
++// Service and GUI load the same executable even when their working directories differ.
++#[cfg(windows)]
++fn load_rdgen_defaults() {
++    use winapi::um::libloaderapi::{FindResourceW, LoadResource, LockResource, SizeofResource};
++    let name: Vec<u16> = "RDGEN_PROFILE".encode_utf16().chain(Some(0)).collect();
++    let data = unsafe {
++        let module = std::ptr::null_mut();
++        let info = FindResourceW(module, name.as_ptr(), 10 as *const u16);
++        if info.is_null() {
++            return;
++        }
++        let size = SizeofResource(module, info) as usize;
++        let handle = LoadResource(module, info);
++        if handle.is_null() || size == 0 || size > 65536 {
++            return;
++        }
++        let ptr = LockResource(handle) as *const u8;
++        if ptr.is_null() {
++            return;
++        }
++        std::slice::from_raw_parts(ptr, size)
++    };
++    let Ok(profile) = serde_json::from_slice::<serde_json::Value>(data) else { return };
++    if profile.get("schema").and_then(|v| v.as_u64()) != Some(1) {
++        return;
++    }
++    // Upstream normally strips :21114 from HTTPS API URLs. Honor an explicit
++    // HTTPS endpoint with this port in the publisher's local profile.
++    if let Some(api) = profile["options"]["api-server"].as_str() {
++        if api.starts_with("https://") && api.ends_with(":21114") {
++            config::BUILTIN_SETTINGS.write().unwrap().insert(
++                keys::OPTION_ALLOW_HTTPS_21114.to_string(),
++                "Y".to_string(),
++            );
++        }
++    }
++    let mut defaults = config::DEFAULT_SETTINGS.write().unwrap();
++    for key in ["custom-rendezvous-server", "relay-server", "api-server", "key"] {
++        if let Some(value) = profile["options"][key].as_str() {
++            defaults.insert(key.to_string(), value.to_string());
++        }
++    }
++}
++
+ pub fn load_custom_client() {
++    #[cfg(windows)]
++    load_rdgen_defaults();
+     #[cfg(debug_assertions)]
+     if let Ok(data) = std::fs::read_to_string("./custom.txt") {
+         read_custom_client(data.trim());

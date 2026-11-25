@@ -1,0 +1,41 @@
+{
+  "project_files": [
+    "msi/CustomActions.dll",
+    "dist/librustdesk.dll",
+    "dist/rustdesk.dll",
+    "dist/printer_driver_adapter.dll",
+    "dist/WindowInjection.dll",
+    "dist/desktop_multi_window_plugin.dll",
+    "dist/desktop_drop_plugin.dll",
+    "dist/flutter_gpu_texture_renderer_plugin.dll",
+    "dist/url_launcher_windows_plugin.dll",
+    "dist/window_manager_plugin.dll",
+    "dist/screen_retriever_windows_plugin.dll",
+    "dist/flutter_custom_cursor_plugin.dll",
+    "dist/dylib_virtual_display.dll",
+    "dist/file_selector_windows_plugin.dll",
+    "dist/screen_retriever_plugin.dll",
+    "dist/texture_rgba_renderer_plugin.dll",
+    "dist/uni_links_desktop_plugin.dll",
+    "dist/window_size_plugin.dll",
+    "dist/data/app.so"
+  ],
+  "vendors": {},
+  "preserve_sha256": {
+    "dist/data/flutter_assets/packages/wakelock_plus/assets/no_sleep.js": "dce4eef0b197b640ad6aaab2228ee1ee7dccf8bd6d6b5de5484dd1bd16430a78"
+  },
+  "sign_sha256": {
+    "dist/flutter_windows.dll": "295d3767a5e5c4017f4877e67a4a8926178ecdfbb1196c3bd21ec5f5097f5ed3",
+    "dist/sciter.dll": "285f3e6a051a7c61845cd7e4d2120781b6bdf411239f70a85c65b38a52d38f28",
+    "dist/usbmmidd_v2/deviceinstaller64.exe": "e9baa02cdae921acf0aae4d8e8c29a4cdf4057ab61f9c60862b7cc439e2753f7"
+  },
+  "msi_binary": {
+    "WixUiCa_X64": "fa07ee084691932f1d733b7e4c9fbcb5ebfc7b58ab6923c16108ba36cce55e9b",
+    "WixUI_Bmp_Up": "573e3260eed63604f24f6f10ce5294e25e22fda9e5bfd9010134de6e684bab98",
+    "WixUI_Bmp_Banner": "92b3a0a230bbc2fa58e67e9ea3c4ac4e5296e3fe957049d3d24ed536409b1008",
+    "WixUI_Ico_Exclam": "593f94ef1405422b3e453f4422b22c990d84303668d60344c6fd257318e92428",
+    "WixUI_Ico_Info": "9ae4a96bf2a349667e844acc1e2ac4f89361a6182268438f4d063df3a6fc47bc",
+    "WixUI_Bmp_New": "4f92e804a11453382ebff7fb0958879bae88fe3366306911dec9d811cd306eed",
+    "WixUI_Bmp_Dialog": "ab097eab826add34f1f44d4fa1bf7ba93374640da04a6abd2684ce1037b23671"
+  }
+}
